@@ -2,3 +2,6 @@ compile_commands.json
 *.o
 *.a
 *.dylib
+*_test
+.cache/
+.vscode/

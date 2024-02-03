@@ -5,29 +5,32 @@ INCLUDES = -I.
 LFLAGS = 
 LIBS = 
 
-TEST = $(NAME)_test
+LDFLAGS = -Wl,-soname=$(SHARED)
+
+TEST_BIN = $(NAME)_test
 SHARED = $(NAME).so
 STATIC = $(NAME).a
 
-LDFLAGS = -Wl,-soname=$(SHARED)
+PREFIX ?= /usr/local
+INCLUDE_PATH ?= include/libdatastructure
+LIBRARY_PATH ?= lib
+INSTALL_INCLUDE_PATH = $(DESTDIR)$(PREFIX)/$(INCLUDE_PATH)
+INSTALL_LIBRARY_PATH = $(DESTDIR)$(PREFIX)/$(LIBRARY_PATH)
+INSTALL ?= cp -a
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
-	ifdef TEST
-		INCLUDES += /usr/local/include
-		LFLAGS += -L/usr/local/lib
-		LIBS += -lcriterion
-	endif
+	TEST_INCLUDES += -I/usr/local/include
+	TEST_LFLAGS += -L/usr/local/lib
+	TEST_LIBS += -lcriterion
 endif
 ifeq ($(UNAME_S),Darwin)
 	SHARED = $(NAME).dylib
 	LDFLAGS = ""
 
-	ifdef TEST
-		INCLUDES += /opt/homebrew/include
-		LFLAGS += -L/opt/homebrew/lib
-		LIBS += -lcriterion
-	endif
+	TEST_INCLUDES += -I/opt/homebrew/include
+	TEST_LFLAGS += -L/opt/homebrew/lib
+	TEST_LIBS += -lcriterion
 endif
 
 ifdef RELEASE
@@ -43,11 +46,21 @@ HEADERS = $(shell find include -name '*.h')
 SRCS = $(shell find src -name '*.c')
 OBJS = $(SRCS:.c=.o)
 
-all: shared static
+ifdef TEST
+	TESTS = $(shell find tests -name '*.c')
+	OBJS += $(TESTS:.c=.o)
+endif
+
+all: shared static tests
+
+tests: $(TEST_BIN)
 
 shared: $(SHARED)
 
 static: $(STATIC)
+
+$(TEST_BIN): $(OBJS)
+	$(CC) $(CCFLAGS) $(INCLUDES) $(TEST_INCLUDES) -o $(TEST_BIN) $< $(LFLAGS) $(TEST_LFLAGS) $(LIBS) $(TEST_LIBS)
 
 $(STATIC): $(OBJS)
 	$(AR) rcs $@ $<
@@ -60,13 +73,14 @@ $(OBJS): $(SRCS) $(HEADERS)
 .c.o:
 	$(CC) $(CCFLAGS) $(INCLUDES) -c $< -o $@
 
-.PHONY: deps format valgrind run clean
+.PHONY: deps format test install clean
 
 deps:
 	./install-deps.sh
 
 format:
-	find . -type f \( -iname \*.c -o -iname \*.h \) | xargs clang-format -i
+	@find . -type f \( -iname \*.c -o -iname \*.h \) | xargs clang-format -i && \
+		echo "Formatted all .c and .h files in project"
 
 # valgrind: clean all
 # 	valgrind \
@@ -77,8 +91,13 @@ format:
 # 		--log-file=vg.out \
 # 		./$(MAIN) config.yaml
 
-# run: clean all
-# 	./$(MAIN) config.yaml
+test: tests
+	./$(TEST_BIN)
+
+install: 
+	mkdir -p $(INSTALL_LIBRARY_PATH) $(INSTALL_INCLUDE_PATH)
+	$(INSTALL) $(HEADERS) $(INSTALL_INCLUDE_PATH)
+	$(INSTALL) $(STATIC) $(SHARED) $(INSTALL_LIBRARY_PATH)
 
 clean:
-	$(RM) *.a *.dylib *.so src/*.o
+	$(RM) *_test *.a *.dylib *.so src/*.o
