@@ -47,20 +47,23 @@ SRCS = $(shell find src -name '*.c')
 OBJS = $(SRCS:.c=.o)
 
 ifdef TEST
-	TESTS = $(shell find tests -name '*.c')
-	OBJS += $(TESTS:.c=.o)
 endif
 
 all: shared static tests
 
+TESTS = $(shell find tests -name '*.c')
+OBJS += $(TESTS:.c=.o) 
+INCLUDES += $(TEST_INCLUDES)
+LFLAGS += $(TEST_LFLAGS)
+LIBS += $(TEST_LIBS)
 tests: $(TEST_BIN)
 
 shared: $(SHARED)
 
 static: $(STATIC)
 
-$(TEST_BIN): $(OBJS)
-	$(CC) $(CCFLAGS) $(INCLUDES) $(TEST_INCLUDES) -o $(TEST_BIN) $< $(LFLAGS) $(TEST_LFLAGS) $(LIBS) $(TEST_LIBS)
+$(TEST_BIN): $(OBJS) 
+	$(CC) $(CCFLAGS) $(INCLUDES) -o $(TEST_BIN) $(OBJS) $(LFLAGS) $(LIBS)
 
 $(STATIC): $(OBJS)
 	$(AR) rcs $@ $<
@@ -100,4 +103,4 @@ install:
 	$(INSTALL) $(STATIC) $(SHARED) $(INSTALL_LIBRARY_PATH)
 
 clean:
-	$(RM) *_test *.a *.dylib *.so src/*.o
+	$(RM) *_test *.a *.dylib *.so src/*.o tests/*.o
